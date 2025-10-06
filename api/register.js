@@ -1,24 +1,24 @@
 import bcrypt from 'bcryptjs';
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-const GITHUB_REPO  = process.env.GITHUB_REPO;   // format: username/repo
-const BASE_PATH    = 'database/user';          // folder di repo
+const GITHUB_REPO  = process.env.GITHUB_REPO;      // username/repo
+const BASE_PATH    = 'database/user';
 
 export default async function handler(req, res) {
+  // 1. Cuma terima POST
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Hanya menerima POST' });
   }
 
-  const { role } = req.query;                  // /api/register/<role>
-  const { username, password } = req.body || {};
+  // 2. Ambil data
+  const { role } = req.query;                      // dari /api/register/<role>
+  const body = await req.json().catch(() => ({})); // jaga-jaga body kosong
+  const { username, password } = body;
 
-  if (!role || !username || !password) {
+  // 3. Validasi sederhana
+  const allow = ['resellerpanel','adminpanel','pantherpanel','owner'];
+  if (!allow.includes(role) || !username?.trim() || !password) {
     return res.status(400).json({ error: 'Role, username dan password wajib diisi' });
-  }
-
-  const allowed = ['resellerpanel','adminpanel','pantherpanel','owner'];
-  if (!allowed.includes(role)) {
-    return res.status(400).json({ error: 'Role tidak valid' });
   }
 
   const filePath = `${BASE_PATH}/${role}.json`;
@@ -27,35 +27,36 @@ export default async function handler(req, res) {
     const apiURL = `https://api.github.com/repos/${GITHUB_REPO}/contents/${encodeURIComponent(filePath)}`;
     const headers = {
       Authorization: `token ${GITHUB_TOKEN}`,
-      'User-Agent': 'vercel-html-demo'
+      'User-Agent': 'vercel-simple'
     };
 
-    // 1. Ambil file lama (jika ada)
+    // 4. Baca file lama (kalau ada)
     let users = [];
     let sha   = null;
     const getRes = await fetch(apiURL, { headers });
     if (getRes.status === 200) {
       const file = await getRes.json();
-      sha = file.sha;
+      sha   = file.sha;
       users = JSON.parse(Buffer.from(file.content, 'base64').toString('utf-8'));
-    } else if (getRes.status !== 404) {
-      throw new Error(`GitHub GET error: ${getRes.status}`);
-    }
+    } else if (getRes.status !== 404) throw new Error('Gagal baca GitHub');
 
-    // 2. Cek duplikat
-    if (users.some(u => u.username === username)) {
+    // 5. Cek duplikat
+    if (users.some(u => u.username === username.trim())) {
       return res.status(409).json({ error: 'Username sudah terdaftar' });
     }
 
-    // 3. Hash & tambahkan user
+    // 6. Hash & tambahkan
     const hashed = await bcrypt.hash(password, 10);
-    users.push({ username, password: hashed, created_at: new Date().toISOString() });
+    users.push({
+      username: username.trim(),
+      password: hashed,
+      created_at: new Date().toISOString()
+    });
 
-    // 4. Push kembali ke GitHub
-    const newContent = Buffer.from(JSON.stringify(users, null, 2)).toString('base64');
+    // 7. Push ke GitHub
     const putBody = {
       message: `Tambah user ${username} di ${role}`,
-      content: newContent,
+      content: Buffer.from(JSON.stringify(users, null, 2)).toString('base64'),
       sha
     };
     const putRes = await fetch(apiURL, {
@@ -63,15 +64,11 @@ export default async function handler(req, res) {
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify(putBody)
     });
+    if (!putRes.ok) throw new Error('Gagal simpan ke GitHub');
 
-    if (!putRes.ok) {
-      const errText = await putRes.text();
-      throw new Error(`GitHub PUT error: ${errText}`);
-    }
-
-    return res.status(200).json({ message: 'Akun berhasil disimpan ke GitHub!' });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: err.message });
+    return res.status(200).json({ message: 'Akun berhasil dibuat!' });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: e.message });
   }
-}
+ }
