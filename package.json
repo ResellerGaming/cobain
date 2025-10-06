@@ -1,0 +1,25 @@
+{
+  "name": "resell-app",
+  "version": "1.0.0",
+  "description": "Website HTML + API Register yang simpan akun ke GitHub JSON (buat Vercel)",
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "start": "node api/register.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "vercel",
+    "api",
+    "github",
+    "register",
+    "html"
+  ],
+  "author": "ResellerGaming",
+  "license": "MIT"
+}
