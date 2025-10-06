@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "routes": [
+    {
+      "src": "/api/register/(?<role>[^/]+)",
+      "dest": "/api/register.js"
+    },
+    {
+      "src": "/create/Developer/?",
+      "dest": "/create/Developer/index.html"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/$1"
+    }
+  ]
+}
